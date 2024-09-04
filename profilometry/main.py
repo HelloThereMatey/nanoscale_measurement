@@ -4,11 +4,12 @@ import matplotlib.pyplot as plt
 import scipy as sp
 from scipy.interpolate import CubicSpline
 from scipy.interpolate import interp1d
-from PyQt6 import QtWidgets  # PyQt6 is the BEST gui framework for python.
+import tkinter as tk
+#from PyQt6 import QtWidgets  # PyQt6 is the BEST gui framework for python.
 import plotly.express as px
 
 #These parameters set my prefence for the appearance of a matplotlib chart. 
-plt.rcParams["backend"] = 'QtAgg'  ##This ensures matplotlib uses the Q6 backend. 
+plt.rcParams["backend"] = 'TkAgg'  ##This ensures matplotlib uses the tk backend. 
 plt.rcParams["figure.figsize"] = (10, 5)
 plt.rcParams["figure.dpi"] = 135
 plt.rcParams["savefig.format"] = "svg"
@@ -21,18 +22,47 @@ import os
 wd = os.path.dirname(__file__); parent = os.path.dirname(wd)
 fdel = os.path.sep
 
-
 ########## STANDALONE UTILITY FUNCTIONS ##########
-def qt_load_file_dialog(dialog_title: str = "Choose a file", initial_dir: str = wd,
-                        file_types: str = "All Files (*);;Text Files (*.txt);;Excel Files (*.xlsx);;csv Files (*.csv)"):
+try:
+    from PyQt6 import QtWidgets
 
-    app = QtWidgets.QApplication.instance()  # Check if an instance already exists
+    def qt_load_file_dialog(caption: str = "Choose a file", initial_dir: str = wd, 
+                            filetypes: str = "All Files (*);;CSV Files (*.csv)"):
+        app = QtWidgets.QApplication.instance()  # Check if an instance already exists
+        if not app:  # If not, create a new instance
+            app = QtWidgets.QApplication(sys.argv)
 
-    if not app:  # If not, create a new instance
-        app = QtWidgets.QApplication(sys.argv)
+        file_path, _ = QtWidgets.QFileDialog.getOpenFileName(parent=None, caption = caption, directory = initial_dir,
+                                                              filter = filetypes)
+        return file_path
 
-    file_path, _ = QtWidgets.QFileDialog.getOpenFileName(None, dialog_title, initial_dir, file_types, options=QtWidgets.QFileDialog.Option.DontUseNativeDialog)
+    load_dialog = qt_load_file_dialog
 
+except ImportError:
+    from tkinter import filedialog
+
+    def tk_load_file_dialog(caption: str = "Choose a file", filetypes=(('CSV files', '*.csv'), 
+                            ('All files', '*.*')),initial_dir: str = wd):
+        root = tk.Tk()
+        root.withdraw()  # Hide the root window
+        file_path = filedialog.askopenfilename(title=caption, filetypes=filetypes, initialdir=initial_dir)
+        return file_path
+
+    load_dialog = tk_load_file_dialog
+
+## If you can install PyQt6, you can use thismain
+#     file_path, _ = QtWidgets.QFileDialog.getOpenFileName(None, dialog_title, initial_dir, file_types, options=QtWidgets.QFileDialog.Option.DontUseNativeDialog)
+
+#     return file_path
+
+# In case you can't install PyQt6, you can use the tkinter file dialog instead. Installtion of PyQt6 requires pip. 
+def basic_load_dialog(initialdir: str = wd, title: str ='Choose your file...', 
+                    filetypes: tuple = (('Image files', '*.png *.bmp *.jpg *.jpeg *.pdf *.svg *.tiff *.tif'),
+                                                  ('All files', '*.*'))):
+    window = tk.Tk()
+    window.withdraw()
+    file_path = filedialog.askopenfilename(filetypes=filetypes, initialdir=initialdir, parent=window, title=title)
+    window.withdraw()  
     return file_path
 
 def ewma_fb(df_column: pd.Series, span):
@@ -196,6 +226,7 @@ class trace_profile(object):
         fig, ax = plt.subplots(1, 1, **fig_kwargs)  # Create a figure and axis object
         if data is not None:
             self.data = data
+        ax: plt.Axes
         ax.plot(self.data, label = "Raw trace data")
         ax.axhline(y=0, color='r', linestyle='--', lw = 0.75)
         ax.grid(visible=True, which='both', axis='both', ls = ":", lw = 0.75)
@@ -204,6 +235,7 @@ class trace_profile(object):
         ax.set_xlabel("x (mm)")
         ax.set_ylabel("Height (nm)")
         ax.set_title(title, loc = "left")
+        ax.margins(0.015, 0.03)
         self.fig = fig
         self.ax = ax
         self.y_max = self.data.max()
@@ -217,11 +249,11 @@ class trace_profile(object):
         if self.leveled_data is not None:
             self.ax.plot(self.data.index, self.substrate_fit, label="Substrate Fit", color='black', ls = "--", lw = 0.75)
             self.ax.plot(self.data.index, self.leveled_data, label="Leveled Data", color = "green")
-            instructions = self.ax.text(0.5, 1.03, "Double-click to measure height of the leveled data trace at that x value.\n\
-                Right-click to remove the latest height measurement", fontsize=9, color='blue', transform=self.ax.transAxes)
+            instructions = self.ax.text(0.4, 1.03, "Double-click to measure height of the leveled data trace at that x value.\n\
+            Right-click to remove the latest height measurement. \nClose chart to return measuement value.", fontsize=9, color='blue', transform=self.ax.transAxes)
         else:
-            instructions = self.ax.text(0.5, 1.03, "Double-click to add a vertical line to choose x1 and then x2.\nThese points specify the x-range for the linear regression of substrate.\n\
-        Right-click to delete in case of wrong choice.", fontsize=9, color='blue', transform=self.ax.transAxes)
+            instructions = self.ax.text(0.3, 1.01, "LEVEL TRACE DATA: Double-click to add a vertical line to choose x1 and then x2.\nThese points specify the x-range for the linear regression of substrate.\n\
+        Right-click to delete in case of wrong choice. Last two lines placed will be used. \nClose chart to run leveling.", fontsize=9, color='blue', transform=self.ax.transAxes)
 
         self.ax.legend()
         plt.show()
@@ -255,7 +287,7 @@ class trace_profile(object):
                 grouped_mask.iloc[non_zero_positions[i]:non_zero_positions[i + 1] + 1] = 1
         self.mask = pd.Series(grouped_mask.to_list(), index = self.original_data.index)
         
-        self.all_data = pd.DataFrame({"Total Profile(nm)": self.original_data, "Derivative": self.derivative,
+        self.all_data = pd.DataFrame({"Raw Data": self.original_data, "Derivative": self.derivative,
                                       "Mask": self.mask, "Despiked": self.original_data.copy()})
         self.all_data.loc[self.mask == 1, "Despiked"] = np.nan
         #Overwrite the main data series with the despiked data.
@@ -336,7 +368,8 @@ class trace_profile(object):
         if filepath:
             pass
         else:
-            filepath = qt_load_file_dialog()
+            filepath = load_dialog(caption="Choose a .csv file containing profilometry data exported from Vision64 software.")
+            
         self.raw_data = pd.read_csv(filepath)
         header, data = self.separate_header()
         header.set_index("Meta Data", inplace=True, drop = True)
@@ -440,12 +473,44 @@ def measure_thickness(filepath: str = "", data: pd.Series = pd.Series(), header:
 
     return profile_data.latest_height_measurement, profile_data
 
+def plotly_plot(pf: trace_profile):
+    melted = pf.all_data[['Raw Data', 'Despiked', 'EMA_FB_20',
+                          'Outliers Removed', 'Interpolated', 'Leveled Data', 'Substrate Fit']].melt(ignore_index=False).reset_index()
+    
+    final_plot = px.line(melted, x="Lateral(mm)", y="value", color="variable",  # Assuming 'variable' is the column that differentiates the traces
+                         title="Profilometry Data from Vision64",
+                         labels={
+                             'Lateral(mm)': 'Trace distance (mm)', 
+                             'value': 'Height (nm)', 
+                             'variable': 'Series'  # Optional: label for the color legend
+                             })
+    final_plot.update_traces(selector={"name": 'Substrate Fit'}, line=dict(width=1.5, dash='dash', color='black'))  # Set the line width to 1
+    final_plot.update_traces(selector={"name": 'Raw Data'}, line=dict(color='blue')) 
+    final_plot.update_traces(selector={"name": 'Leveled Data'}, line=dict(color='green')) 
+
+    # Add a dotted red line along y = 0
+    final_plot.add_shape(type="line", x0=melted["Lateral(mm)"].min(),  # Start of the x-axis
+                         y0=0, x1=melted["Lateral(mm)"].max(), y1=0,  # y = 0
+                         line=dict(color="red",width=1.5,dash="dash"))
+
+    # Update layout to reduce whitespace and add title
+    final_plot.update_layout(
+        title_x=0.5,  # Center the title
+        margin=dict(l=20, r=20, t=40, b=20),  # Reduce margins
+        width=1200,  # Set the width of the plot
+        height=600  # Set the height of the plot
+    )
+
+    return final_plot
+
 if __name__ == "__main__":
-    filepath = '/home/purpy-furcat/Documents/Code/Lab_Related/Profilometry/Traces/Salma_2.csv'
+    filepath = '/home/purpy-furcat/Documents/Code/Lab_Related/Data/Traces/Salma_2.csv'
     thickness = measure_thickness(filepath=filepath)
-    print(f"The thickness of the film is {thickness[0]:.2f} nm.")
+    if thickness[0] is not None:
+        print(f"The thickness of the film is {thickness[0]:.2f} nm.")
 
     pf = thickness[1]
+    print(pf.all_data.columns)
     # pf = trace_profile(filePath=filepath)
     # pf.remove_spikes(1.5, 20, leveled=False)
     # fig, axes = plt.subplots(2, 1)
@@ -475,22 +540,5 @@ if __name__ == "__main__":
     # plt.show()
 
     ############ Plotly express plot of the data. #########
-    # melted = pf.all_data[["Total Profile(nm)", "EMA_FB_20", "Outliers Removed"]].melt(ignore_index=False).reset_index()
- 
-    # final_plot = px.line(melted, x="Lateral(mm)", y="value", color="variable",  # Assuming 'variable' is the column that differentiates the traces
-    # title="Profilometry Data",
-    # labels={
-    #     'Lateral(mm)': 'Trace distance (mm)', 
-    #     'value': 'Height (nm)', 
-    #     'variable': 'Series'  # Optional: label for the color legend
-    # },
-    # color_discrete_sequence=['black', 'red', 'green'])
-    # # Add a dotted red line along y = 0
-    # final_plot.add_shape(type="line",x0=melted["Lateral(mm)"].min(),  # Start of the x-axis
-    #     y0=0, x1=melted["Lateral(mm)"].max(), y1=0,  # y = 0
-    #     line=dict(
-    #         color="red",
-    #         width=2,
-    #         dash="dot"))
-    # print(pf.all_data)
-    # final_plot.show()
+    pplot = plotly_plot(pf)
+    pplot.show()
