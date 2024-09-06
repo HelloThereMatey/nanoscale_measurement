@@ -504,8 +504,8 @@ def plotly_plot(pf: trace_profile):
     return final_plot
 
 if __name__ == "__main__":
-    filepath = '/home/purpy-furcat/Documents/Code/Lab_Related/Data/Traces/Salma_2.csv'
-    thickness = measure_thickness(filepath=filepath)
+    #filepath = '/home/purpy-furcat/Documents/Code/Lab_Related/Data/Traces/Salma_2.csv'
+    thickness = measure_thickness()
     if thickness[0] is not None:
         print(f"The thickness of the film is {thickness[0]:.2f} nm.")
 
