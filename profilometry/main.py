@@ -369,14 +369,11 @@ class trace_profile(object):
             pass
         else:
             filepath = load_dialog(caption="Choose a .csv file containing profilometry data exported from Vision64 software.")
-            
-        self.raw_data = pd.read_csv(filepath)
-        header, data = self.separate_header()
-        header.set_index("Meta Data", inplace=True, drop = True)
-        data = data.astype(float)
-        data.set_index(data.columns[0], inplace=True, drop = True)
-        data = pd.Series(data[data.columns[0]], name = data.columns[0]).astype(float)
-        header = pd.Series(header[header.columns[0]], name = header.columns[0]).astype(str)
+        
+        header = pd.read_csv(filepath, on_bad_lines='skip', skip_blank_lines=True, skiprows=1, index_col=0)
+        header = header[header.columns[0]].rename("MetaData").astype(str)
+        data = pd.read_csv(filepath, on_bad_lines='skip', skip_blank_lines=True, skiprows=22, index_col=0).dropna(axis=1).squeeze()
+        data = pd.Series(data).astype(float)
         return header, data
     
     def level_data(self, x1: float, x2: float):
